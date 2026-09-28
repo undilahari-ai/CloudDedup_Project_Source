@@ -1,0 +1,125 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function validHash(value) {
+      return value is string && value.size() == 64;
+    }
+
+    function validTitle(value) {
+      return value is string && value.size() > 0 && value.size() <= 255;
+    }
+
+    function validDescription(value) {
+      return value is string && value.size() > 0 && value.size() <= 5000;
+    }
+
+    match /users/{userId} {
+      allow read, write: if false;
+
+      match /records/{recordId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && request.resource.data.keys().hasOnly([
+            'title', 'description', 'normalizedTitle', 'normalizedDescription',
+            'contentHash', 'status', 'isVerified', 'createdAt'
+          ])
+          && validTitle(request.resource.data.title)
+          && validDescription(request.resource.data.description)
+          && validTitle(request.resource.data.normalizedTitle)
+          && validDescription(request.resource.data.normalizedDescription)
+          && validHash(request.resource.data.contentHash)
+          && request.resource.data.status in ['UNIQUE', 'FALSE_POSITIVE']
+          && request.resource.data.isVerified == true
+          && request.resource.data.createdAt is timestamp
+          && getAfter(/databases/$(database)/documents/users/$(userId)/hashes/$(request.resource.data.contentHash)).data.recordId == recordId;
+
+        allow update, delete: if false;
+      }
+
+      match /hashes/{hashId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && validHash(hashId)
+          && request.resource.data.keys().hasOnly(['recordId', 'createdAt'])
+          && request.resource.data.recordId is string
+          && request.resource.data.createdAt is timestamp
+          && getAfter(/databases/$(database)/documents/users/$(userId)/records/$(request.resource.data.recordId)).data.contentHash == hashId;
+
+        allow update, delete: if false;
+      }
+
+      match /reviewQueue/{reviewId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && request.resource.data.keys().hasOnly([
+            'title', 'description', 'normalizedTitle', 'normalizedDescription',
+            'contentHash', 'similarityScore', 'matchedRecordId', 'status', 'createdAt'
+          ])
+          && validTitle(request.resource.data.title)
+          && validDescription(request.resource.data.description)
+          && validTitle(request.resource.data.normalizedTitle)
+          && validDescription(request.resource.data.normalizedDescription)
+          && validHash(request.resource.data.contentHash)
+          && request.resource.data.similarityScore is number
+          && request.resource.data.similarityScore >= 0
+          && request.resource.data.similarityScore <= 1
+          && request.resource.data.matchedRecordId is string
+          && request.resource.data.status == 'PENDING'
+          && request.resource.data.createdAt is timestamp
+          && getAfter(/databases/$(database)/documents/users/$(userId)/pendingHashes/$(request.resource.data.contentHash)).data.reviewId == reviewId;
+
+        allow update: if isOwner(userId)
+          && resource.data.status == 'PENDING'
+          && request.resource.data.status in ['APPROVED', 'REJECTED']
+          && request.resource.data.reviewedAt is timestamp
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt']);
+
+        allow delete: if false;
+      }
+
+      match /pendingHashes/{hashId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && validHash(hashId)
+          && request.resource.data.keys().hasOnly(['reviewId', 'createdAt'])
+          && request.resource.data.reviewId is string
+          && request.resource.data.createdAt is timestamp
+          && getAfter(/databases/$(database)/documents/users/$(userId)/reviewQueue/$(request.resource.data.reviewId)).data.contentHash == hashId;
+
+        allow delete: if isOwner(userId)
+          && getAfter(/databases/$(database)/documents/users/$(userId)/reviewQueue/$(resource.data.reviewId)).data.status in ['APPROVED', 'REJECTED'];
+
+        allow update: if false;
+      }
+
+      match /duplicateEvents/{eventId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && request.resource.data.keys().hasOnly([
+            'kind', 'contentHash', 'matchedRecordId', 'sourceReviewId', 'createdAt'
+          ])
+          && request.resource.data.kind in ['EXACT_DUPLICATE', 'CONFIRMED_DUPLICATE']
+          && validHash(request.resource.data.contentHash)
+          && request.resource.data.matchedRecordId is string
+          && (request.resource.data.sourceReviewId == null || request.resource.data.sourceReviewId is string)
+          && request.resource.data.createdAt is timestamp;
+
+        allow update, delete: if false;
+      }
+
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+# Dependencies / generated output
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+
+# Logs and caches
+*.log
+.DS_Store
+Thumbs.db
+.cache/
+.firebase/
+
+# Editors
+.vscode/
+.idea/

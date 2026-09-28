@@ -1,0 +1,26 @@
+{
+  "name": "clouddedup-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test:security": "node scripts/security-check.mjs",
+    "check": "npm run test && npm run test:security && tsc -b --pretty false",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "firebase": "12.19.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "7.0.2",
+    "vite": "8.2.2"
+  }
+}
